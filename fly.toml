@@ -1,0 +1,34 @@
+# Fly.io deployment config. Requires your own Fly account — see README.md
+# for the full deploy walkthrough. Replace `app` below after `fly launch`.
+app = "indexnow-console"
+primary_region = "gru" # São Paulo — closest region to the target domains' audience; change if needed
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  DATABASE_PATH = "/data/indexnow.db"
+
+[[mounts]]
+  source = "indexnow_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  # better-sqlite3 is single-process/file-locked — never scale this past 1 machine.
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
