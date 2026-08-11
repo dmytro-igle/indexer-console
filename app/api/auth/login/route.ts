@@ -6,11 +6,14 @@ import {
   COOKIE_NAME,
 } from "@/lib/auth/session";
 
-const bodySchema = z.object({ password: z.string().min(1) });
+const bodySchema = z.object({
+  password: z.string().min(1),
+});
 
 export async function POST(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
+
   if (!parsed.success) {
     return NextResponse.json(
       { error: { message: "Password is required" } },
@@ -25,14 +28,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const forwardedProto = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+
+  const isHttps =
+    forwardedProto === "https" || new URL(request.url).protocol === "https:";
+
   const { value, maxAge } = createSessionToken();
-  const res = NextResponse.json({ data: { ok: true } });
+
+  const res = NextResponse.json({
+    data: { ok: true },
+  });
+
   res.cookies.set(COOKIE_NAME, value, {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE !== "false",
+    secure: isHttps,
     sameSite: "lax",
     path: "/",
     maxAge,
   });
+
   return res;
 }
