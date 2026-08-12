@@ -27,9 +27,55 @@ export default function DomainDetail({
 
   const [hasSeoAudit, setHasSeoAudit] = useState(Boolean(domain.last_seo_audit_id));
   const [runningSeoAudit, setRunningSeoAudit] = useState(false);
+  const [fetchingSitemap, setFetchingSitemap] = useState(false);
+  const [sitemapSummary, setSitemapSummary] = useState<string | null>(null);
+  const [newUrls, setNewUrls] = useState<string[]>([]);
   const [owner, setOwner] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [deadline, setDeadline] = useState("");
+
+  async function fetchSitemapNow() {
+    setFetchingSitemap(true);
+    setSitemapSummary(null);
+    setNewUrls([]);
+    try {
+      const res = await fetch("/api/sitemaps/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domainIds: [domain.id] }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSitemapSummary(`Failed: ${body?.error?.message ?? res.status}`);
+        return;
+      }
+      const result = body.data?.[0] as
+        | {
+            status: string;
+            urlCount: number;
+            newUrlCount?: number;
+            newUrls?: string[];
+            reactivatedUrlCount?: number;
+            error?: string | null;
+          }
+        | undefined;
+      if (!result) {
+        setSitemapSummary("Fetch completed, but no result was returned.");
+        return;
+      }
+      const discovered = result.newUrls ?? [];
+      setNewUrls(discovered);
+      const reactivated = result.reactivatedUrlCount ?? 0;
+      setSitemapSummary(
+        `Sitemap ${result.status}: ${result.urlCount} URL(s), ${discovered.length} new${
+          reactivated > 0 ? `, ${reactivated} reactivated` : ""
+        }${result.error ? ` (${result.error})` : ""}`
+      );
+      router.refresh();
+    } finally {
+      setFetchingSitemap(false);
+    }
+  }
 
   async function runSeoAuditNow() {
     setRunningSeoAudit(true);
@@ -205,10 +251,37 @@ export default function DomainDetail({
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold">
-          URLs ({urls.filter((u) => u.is_active).length} active / {urls.length} total)
-        </h2>
-        <DomainUrlsTable urls={urls} />
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            URLs ({urls.filter((u) => u.is_active).length} active / {urls.length} total)
+          </h2>
+          <button
+            type="button"
+            onClick={fetchSitemapNow}
+            disabled={fetchingSitemap}
+            className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 dark:border-white/15 dark:hover:bg-neutral-800"
+          >
+            {fetchingSitemap ? "Fetching…" : "Fetch sitemap"}
+          </button>
+        </div>
+        {sitemapSummary && (
+          <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400">{sitemapSummary}</p>
+        )}
+        {newUrls.length > 0 && (
+          <div className="mb-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm dark:border-green-900/60 dark:bg-green-950/30">
+            <p className="font-medium text-green-800 dark:text-green-200">
+              New pages found ({newUrls.length})
+            </p>
+            <ul className="mt-2 max-h-40 overflow-auto text-xs text-green-900 dark:text-green-100">
+              {newUrls.map((url) => (
+                <li key={url} className="truncate py-0.5">
+                  {url}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <DomainUrlsTable domainId={domain.id} urls={urls} newUrls={newUrls} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { resolveTargetDomains } from "@/lib/api/bulk";
-import { listActiveUrlsForDomain, setGoogleTrackingId } from "@/lib/db/urls";
+import { parseBulkRequest } from "@/lib/api/bulk";
+import { getDomainsByIds } from "@/lib/db/domains";
+import { filterUrlsByIds, listActiveUrlsForDomain, setGoogleTrackingId } from "@/lib/db/urls";
 import {
   createGoogleBatch,
   finishGoogleBatch,
@@ -23,14 +24,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const domains = await resolveTargetDomains(request);
+  const body = await parseBulkRequest(request);
+  const domains = getDomainsByIds(body.domainIds);
   const batch = createGoogleBatch();
 
   let totalUrlCount = 0;
 
   const results = await Promise.allSettled(
     domains.map(async (domain) => {
-      const activeUrls = listActiveUrlsForDomain(domain.id);
+      const activeUrls = filterUrlsByIds(listActiveUrlsForDomain(domain.id), body.urlIds);
 
       if (activeUrls.length === 0) {
         recordGoogleBatchDomainOutcome({

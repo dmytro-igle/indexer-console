@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { resolveTargetDomains } from "@/lib/api/bulk";
-import { listActiveUrlsForDomain } from "@/lib/db/urls";
+import { parseBulkRequest } from "@/lib/api/bulk";
+import { getDomainsByIds } from "@/lib/db/domains";
+import { filterUrlsByIds, listActiveUrlsForDomain } from "@/lib/db/urls";
 import { getKeyVerificationById } from "@/lib/db/keyVerifications";
 import {
   createBatch,
@@ -12,7 +13,8 @@ import {
 import { submitToIndexNow } from "@/lib/indexnow/submit";
 
 export async function POST(request: Request) {
-  const domains = await resolveTargetDomains(request);
+  const body = await parseBulkRequest(request);
+  const domains = getDomainsByIds(body.domainIds);
   const batch = createBatch();
 
   let totalUrlCount = 0;
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
       const keyVerification = domain.last_key_verification_id
         ? getKeyVerificationById(domain.last_key_verification_id)
         : undefined;
-      const activeUrls = listActiveUrlsForDomain(domain.id);
+      const activeUrls = filterUrlsByIds(listActiveUrlsForDomain(domain.id), body.urlIds);
 
       let outcome: BatchDomainOutcome;
       if (!keyVerification || !keyVerification.success) {

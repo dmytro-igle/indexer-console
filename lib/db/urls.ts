@@ -28,6 +28,12 @@ export function listActiveUrlsForDomain(domainId: number): DomainUrlRow[] {
     .all(domainId);
 }
 
+export function filterUrlsByIds(urls: DomainUrlRow[], urlIds: number[] | undefined): DomainUrlRow[] {
+  if (!urlIds || urlIds.length === 0) return urls;
+  const selected = new Set(urlIds);
+  return urls.filter((u) => selected.has(u.id));
+}
+
 export function getUrlById(id: number): DomainUrlRow | undefined {
   return getDb()
     .prepare<[number], DomainUrlRow>(`SELECT * FROM domain_urls WHERE id = ?`)
@@ -79,9 +85,23 @@ export function listUrlsWithGoogleTrackingId(domainIds: number[] | undefined): D
  * previously-active URL not present in `urls` this run is marked inactive
  * rather than deleted, since submissions history may reference it.
  */
-export function syncDomainUrls(domainId: number, urls: string[]): void {
+export interface DomainUrlSyncResult {
+  discoveredCount: number;
+  newUrls: string[];
+  reactivatedUrls: string[];
+}
+
+export function syncDomainUrls(domainId: number, urls: string[]): DomainUrlSyncResult {
   const db = getDb();
   const dedupedUrls = Array.from(new Set(urls));
+  const existing = db
+    .prepare<[number], { url: string; is_active: number }>(
+      `SELECT url, is_active FROM domain_urls WHERE domain_id = ?`
+    )
+    .all(domainId);
+  const existingByUrl = new Map(existing.map((row) => [row.url, row.is_active]));
+  const newUrls = dedupedUrls.filter((url) => !existingByUrl.has(url));
+  const reactivatedUrls = dedupedUrls.filter((url) => existingByUrl.get(url) === 0);
 
   const upsert = db.prepare(
     `INSERT INTO domain_urls (domain_id, url, last_seen_at, is_active)
@@ -100,4 +120,10 @@ export function syncDomainUrls(domainId: number, urls: string[]): void {
     deactivateStale.run(domainId, ...list);
   });
   tx(dedupedUrls);
+
+  return {
+    discoveredCount: dedupedUrls.length,
+    newUrls,
+    reactivatedUrls,
+  };
 }

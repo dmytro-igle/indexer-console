@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const results = await Promise.allSettled(
     domains.map(async (domain) => {
       const result = await fetchDomainSitemap(domain.host);
-      syncDomainUrls(domain.id, result.urls);
+      const syncResult = syncDomainUrls(domain.id, result.urls);
       const run = recordSitemapRun({
         domainId: domain.id,
         status: result.status,
@@ -23,6 +23,10 @@ export async function POST(request: Request) {
         host: domain.host,
         status: result.status,
         urlCount: result.urls.length,
+        newUrlCount: syncResult.newUrls.length,
+        newUrls: syncResult.newUrls,
+        reactivatedUrlCount: syncResult.reactivatedUrls.length,
+        reactivatedUrls: syncResult.reactivatedUrls,
         sitemapsVisited: result.sitemapsVisited,
         error: run.error_message,
       };
