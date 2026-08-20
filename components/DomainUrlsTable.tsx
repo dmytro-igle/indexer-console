@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DomainUrlRow } from "@/lib/db/urls";
+import type { DomainUrlSummary } from "@/lib/db/urls";
 import StatusBadge from "./StatusBadge";
 import IndexedStatusEditor from "./IndexedStatusEditor";
 import ConfirmDialog from "./ConfirmDialog";
@@ -14,13 +14,38 @@ interface SubmitRunResult {
   results: { outcome: string; httpStatus: number | null; urlCount: number; error: string | null }[];
 }
 
+function SubmissionCell({
+  submission,
+}: {
+  submission: DomainUrlSummary["lastSubmission"] | DomainUrlSummary["lastGoogleSubmission"];
+}) {
+  if (!submission.submitted_at) {
+    return <span className="text-neutral-400">Never</span>;
+  }
+  const tone =
+    submission.outcome === "accepted" ? "green" : submission.outcome === "rejected" ? "yellow" : "red";
+  return (
+    <span>
+      {submission.submitted_at.slice(0, 16).replace("T", " ")} —{" "}
+      <StatusBadge
+        label={
+          submission.outcome
+            ? `${submission.outcome}${submission.http_status ? ` (${submission.http_status})` : ""}`
+            : "unknown"
+        }
+        tone={tone}
+      />
+    </span>
+  );
+}
+
 export default function DomainUrlsTable({
   domainId,
   urls,
   newUrls,
 }: {
   domainId: number;
-  urls: DomainUrlRow[];
+  urls: DomainUrlSummary[];
   newUrls: string[];
 }) {
   const router = useRouter();
@@ -53,6 +78,15 @@ export default function DomainUrlsTable({
       else next.add(id);
       return next;
     });
+  }
+
+  function selectUnsubmitted(target: "bing" | "google") {
+    const ids = activeRows
+      .filter((u) =>
+        target === "bing" ? !u.lastSubmission.submitted_at : !u.lastGoogleSubmission.submitted_at
+      )
+      .map((u) => u.id);
+    setSelected(new Set(ids));
   }
 
   function summarize(label: string, result: SubmitRunResult): string {
@@ -138,6 +172,23 @@ export default function DomainUrlsTable({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
+          onClick={() => selectUnsubmitted("bing")}
+          disabled={pending !== null}
+          className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 dark:border-white/15 dark:hover:bg-neutral-800"
+        >
+          Select unsubmitted (IndexNow)
+        </button>
+        <button
+          type="button"
+          onClick={() => selectUnsubmitted("google")}
+          disabled={pending !== null}
+          className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 dark:border-white/15 dark:hover:bg-neutral-800"
+        >
+          Select unsubmitted (Google)
+        </button>
+        <span className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" aria-hidden />
+        <button
+          type="button"
           onClick={() => setConfirmTarget("bing")}
           disabled={pending !== null || selectedCount === 0}
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
@@ -184,11 +235,23 @@ export default function DomainUrlsTable({
               <th className="px-3 py-2">New</th>
               <th className="px-3 py-2">Last seen</th>
               <th className="px-3 py-2">Indexed status</th>
+              <th className="px-3 py-2">Last submitted (IndexNow)</th>
+              <th className="px-3 py-2">Last submitted (Google)</th>
             </tr>
           </thead>
           <tbody>
             {urls.map((u) => (
-              <tr key={u.id} className="border-t border-black/5 dark:border-white/5">
+              <tr
+                key={u.id}
+                onClick={(e) => {
+                  if (!u.is_active) return;
+                  if ((e.target as HTMLElement).closest("a, button, input")) return;
+                  toggleOne(u.id);
+                }}
+                className={`border-t border-black/5 dark:border-white/5 ${
+                  u.is_active ? "cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50" : ""
+                } ${selectedIdSet.has(u.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}
+              >
                 <td className="px-3 py-2">
                   <input
                     type="checkbox"
@@ -226,11 +289,17 @@ export default function DomainUrlsTable({
                     }
                   />
                 </td>
+                <td className="px-3 py-2 whitespace-nowrap text-neutral-500">
+                  <SubmissionCell submission={u.lastSubmission} />
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap text-neutral-500">
+                  <SubmissionCell submission={u.lastGoogleSubmission} />
+                </td>
               </tr>
             ))}
             {urls.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-neutral-400">
+                <td colSpan={8} className="px-3 py-8 text-center text-neutral-400">
                   No URLs yet. Fetch the sitemap for this domain.
                 </td>
               </tr>

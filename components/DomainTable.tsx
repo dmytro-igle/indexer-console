@@ -5,16 +5,55 @@ import type { DomainSummary } from "@/lib/db/domains";
 import StatusBadge from "./StatusBadge";
 import SelfCheckLabel from "./SelfCheckLabel";
 
+export type DomainSortKey = "host" | "country" | "added";
+export type SortDir = "asc" | "desc";
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+}: {
+  label: React.ReactNode;
+  sortKey: DomainSortKey;
+  activeKey: DomainSortKey;
+  dir: SortDir;
+  onSort: (key: DomainSortKey) => void;
+  className?: string;
+}) {
+  const active = sortKey === activeKey;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="flex items-center gap-1 hover:text-neutral-800 dark:hover:text-neutral-200"
+      >
+        {label}
+        <span className="text-[10px]">{active ? (dir === "asc" ? "▲" : "▼") : ""}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function DomainTable({
   domains,
   selected,
   onToggle,
   onToggleAll,
+  sortKey,
+  sortDir,
+  onSort,
 }: {
   domains: DomainSummary[];
   selected: Set<number>;
   onToggle: (id: number) => void;
   onToggleAll: () => void;
+  sortKey: DomainSortKey;
+  sortDir: SortDir;
+  onSort: (key: DomainSortKey) => void;
 }) {
   const allSelected = domains.length > 0 && domains.every((d) => selected.has(d.id));
 
@@ -26,8 +65,22 @@ export default function DomainTable({
             <th className="w-8 px-3 py-2">
               <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
             </th>
-            <th className="px-3 py-2">Host</th>
-            <th className="px-3 py-2">Country</th>
+            <SortableHeader
+              label="Host"
+              sortKey="host"
+              activeKey={sortKey}
+              dir={sortDir}
+              onSort={onSort}
+              className="px-3 py-2"
+            />
+            <SortableHeader
+              label="Country"
+              sortKey="country"
+              activeKey={sortKey}
+              dir={sortDir}
+              onSort={onSort}
+              className="px-3 py-2"
+            />
             <th className="px-3 py-2">
               Key <SelfCheckLabel />
             </th>
@@ -35,13 +88,27 @@ export default function DomainTable({
             <th className="px-3 py-2">SEO Audit</th>
             <th className="px-3 py-2">Last submitted (IndexNow)</th>
             <th className="px-3 py-2">Last submitted (Google)</th>
+            <SortableHeader
+              label="Added"
+              sortKey="added"
+              activeKey={sortKey}
+              dir={sortDir}
+              onSort={onSort}
+              className="px-3 py-2"
+            />
           </tr>
         </thead>
         <tbody>
           {domains.map((d) => (
             <tr
               key={d.id}
-              className="border-t border-black/5 hover:bg-neutral-50 dark:border-white/5 dark:hover:bg-neutral-900/50"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("a, button, input")) return;
+                onToggle(d.id);
+              }}
+              className={`cursor-pointer border-t border-black/5 hover:bg-neutral-50 dark:border-white/5 dark:hover:bg-neutral-900/50 ${
+                selected.has(d.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""
+              }`}
             >
               <td className="px-3 py-2">
                 <input
@@ -135,11 +202,14 @@ export default function DomainTable({
                   <span className="text-neutral-400">Never</span>
                 )}
               </td>
+              <td className="px-3 py-2 whitespace-nowrap text-neutral-500">
+                {d.created_at ? d.created_at.slice(0, 10) : "—"}
+              </td>
             </tr>
           ))}
           {domains.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-3 py-8 text-center text-neutral-400">
+              <td colSpan={9} className="px-3 py-8 text-center text-neutral-400">
                 No domains yet. Add one to get started.
               </td>
             </tr>

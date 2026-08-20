@@ -20,6 +20,55 @@ export function listUrlsForDomain(domainId: number): DomainUrlRow[] {
     .all(domainId);
 }
 
+export interface UrlSubmissionInfo {
+  submitted_at: string | null;
+  outcome: string | null;
+  http_status: number | null;
+}
+
+export interface DomainUrlSummary extends DomainUrlRow {
+  lastSubmission: UrlSubmissionInfo;
+  lastGoogleSubmission: UrlSubmissionInfo;
+}
+
+export function listUrlsForDomainWithSubmissions(domainId: number): DomainUrlSummary[] {
+  const db = getDb();
+  const urls = listUrlsForDomain(domainId);
+
+  const lastSubmissionStmt = db.prepare<[number], UrlSubmissionInfo>(
+    `SELECT submitted_at, submission_status as outcome, http_status
+     FROM submissions
+     WHERE domain_url_id = ?
+     ORDER BY submitted_at DESC
+     LIMIT 1`
+  );
+  const lastGoogleSubmissionStmt = db.prepare<[number], UrlSubmissionInfo>(
+    `SELECT submitted_at, submission_status as outcome, http_status
+     FROM google_submissions
+     WHERE domain_url_id = ?
+     ORDER BY submitted_at DESC
+     LIMIT 1`
+  );
+
+  return urls.map((u) => {
+    const lastSubmission = lastSubmissionStmt.get(u.id);
+    const lastGoogleSubmission = lastGoogleSubmissionStmt.get(u.id);
+    return {
+      ...u,
+      lastSubmission: {
+        submitted_at: lastSubmission?.submitted_at ?? null,
+        outcome: lastSubmission?.outcome ?? null,
+        http_status: lastSubmission?.http_status ?? null,
+      },
+      lastGoogleSubmission: {
+        submitted_at: lastGoogleSubmission?.submitted_at ?? null,
+        outcome: lastGoogleSubmission?.outcome ?? null,
+        http_status: lastGoogleSubmission?.http_status ?? null,
+      },
+    };
+  });
+}
+
 export function listActiveUrlsForDomain(domainId: number): DomainUrlRow[] {
   return getDb()
     .prepare<[number], DomainUrlRow>(

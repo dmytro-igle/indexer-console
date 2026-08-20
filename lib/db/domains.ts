@@ -69,7 +69,7 @@ export function listDomains(): DomainSummary[] {
   const db = getDb();
   const domains = db
     .prepare<[], DomainRow>(
-      `SELECT * FROM domains WHERE is_active = 1 ORDER BY host ASC`
+      `SELECT * FROM domains WHERE is_active = 1 ORDER BY created_at DESC`
     )
     .all();
 

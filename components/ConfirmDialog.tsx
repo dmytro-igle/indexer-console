@@ -5,6 +5,7 @@ export default function ConfirmDialog({
   title,
   description,
   confirmLabel = "Confirm",
+  danger = false,
   onConfirm,
   onCancel,
 }: {
@@ -12,6 +13,7 @@ export default function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel?: string;
+  danger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -31,7 +33,9 @@ export default function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            className={`rounded-md px-3 py-1.5 text-sm font-medium text-white ${
+              danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             {confirmLabel}
           </button>

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDomainById } from "@/lib/db/domains";
-import { listUrlsForDomain } from "@/lib/db/urls";
+import { listUrlsForDomainWithSubmissions } from "@/lib/db/urls";
 import { getSeoAuditById } from "@/lib/db/seoAudits";
 import { getSitemapRunById } from "@/lib/db/sitemapRuns";
 import { deriveBriefIssues } from "@/lib/seo/issues";
@@ -13,7 +13,7 @@ export default async function DomainDetailPage(
   const domain = getDomainById(Number(id));
   if (!domain) notFound();
 
-  const urls = listUrlsForDomain(domain.id);
+  const urls = listUrlsForDomainWithSubmissions(domain.id);
   const seoAudit = domain.last_seo_audit_id ? (getSeoAuditById(domain.last_seo_audit_id) ?? null) : null;
   const sitemapRun = domain.last_sitemap_run_id ? getSitemapRunById(domain.last_sitemap_run_id) : null;
   const issues = deriveBriefIssues({

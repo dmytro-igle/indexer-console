@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DomainRow } from "@/lib/db/domains";
-import type { DomainUrlRow } from "@/lib/db/urls";
+import type { DomainUrlSummary } from "@/lib/db/urls";
 import type { BriefIssueRow } from "@/lib/seo/issues";
 import DomainUrlsTable from "./DomainUrlsTable";
 import DomainIssuesList from "./DomainIssuesList";
 import SelfCheckLabel from "./SelfCheckLabel";
+import ConfirmDialog from "./ConfirmDialog";
 
 export default function DomainDetail({
   domain,
@@ -15,7 +16,7 @@ export default function DomainDetail({
   issues,
 }: {
   domain: DomainRow;
-  urls: DomainUrlRow[];
+  urls: DomainUrlSummary[];
   issues: BriefIssueRow[];
 }) {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function DomainDetail({
   const [keyLocation, setKeyLocation] = useState(domain.key_location);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [hasSeoAudit, setHasSeoAudit] = useState(Boolean(domain.last_seo_audit_id));
   const [runningSeoAudit, setRunningSeoAudit] = useState(false);
@@ -124,6 +128,23 @@ export default function DomainDetail({
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/domains/${domain.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setDeleteError(body?.error?.message ?? "Failed to delete");
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <form
@@ -156,7 +177,7 @@ export default function DomainDetail({
           />
         </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <div>
+        <div className="flex items-center justify-between">
           <button
             type="submit"
             disabled={saving}
@@ -164,8 +185,30 @@ export default function DomainDetail({
           >
             {saving ? "Saving…" : "Save"}
           </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            disabled={deleting}
+            className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            {deleting ? "Deleting…" : "Delete domain"}
+          </button>
         </div>
+        {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
       </form>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this domain?"
+        description={`This removes ${domain.host} from the dashboard along with its submission history. This can't be undone from the UI.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => {
+          setConfirmDelete(false);
+          handleDelete();
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       <div className="flex flex-col gap-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
         <div className="flex items-center justify-between">
